@@ -22,5 +22,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/schema/', SpectacularAPIView.as_view(), name='api-schema'), #generates yml schema file
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='api-schema'), name='api-docs'),
-    path('api/user/', include('user.urls'))
+    path('api/user/', include('user.urls')),
+    path('api/organization', include('organization.urls')),
+    path('api/visitor', include('visitor.urls')),
+    path('api/invitation', include('invitation.urls'))
 ]

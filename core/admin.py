@@ -11,7 +11,7 @@ from core import models
 class UserAdmin(BaseUserAdmin):
     '''Define the admin page for users'''
     ordering = ['id']
-    list_display = ['email', 'first_name', 'last_name']
+    list_display = ['email', 'first_name', 'last_name', 'role']
     fieldsets = (
         (None, {'fields': ('email', 'password',)}),
         (_('Permissions'), {'fields':('is_active','is_staff', 'is_superuser',)}),
@@ -25,3 +25,4 @@ class UserAdmin(BaseUserAdmin):
 
 #making models manageable through admin site
 admin.site.register(models.User, UserAdmin)
+admin.site.register(models.Organization)

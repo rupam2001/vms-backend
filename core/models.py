@@ -7,7 +7,7 @@ from django.conf import settings
 
 class UserManager(BaseUserManager):
     '''Manager for user'''
-    def create_user(self, email, password, first_name, last_name, role, **extra_fields):
+    def create_user(self, email, first_name, last_name, role, password=None, **extra_fields):
         '''create a general user'''
         if not email:
             raise ValueError("Email is required")
@@ -37,12 +37,16 @@ class Organization(models.Model):
     name = models.CharField(max_length=255)
     email = models.EmailField(max_length=255, unique=True)
     about = models.TextField()
-    created_by = models.ForeignKey(
+    created_by = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE
     )
     logo_pic_url = models.CharField(max_length=500, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Location(models.Model):
@@ -53,6 +57,14 @@ class Location(models.Model):
         Organization,
         on_delete=models.DO_NOTHING
     )
+    # members = models.ManyToManyField(
+    #     settings.AUTH_USER_MODEL,
+    #     related_name='organizations',
+    #     blank=True
+    # )
+
+
+
 
 class User(AbstractBaseUser, PermissionsMixin):
     '''User in the system'''
@@ -63,12 +75,20 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_superuser = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     role = models.CharField(max_length=50)
+
     orgnaization = models.ForeignKey(
         Organization, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
-        related_name='members'
+        # related_name='members' 
+    )
+    created_organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='orgs'
     )
     profile_pic_url = models.CharField(max_length=500, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -76,6 +96,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
+
+
+class Notification(models.Model):
+    '''Notifications for everybody'''
+    origin_user = models.ForeignKey(User, on_delete=models.CASCADE)
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    notification_type = models.CharField(max_length=20) # Critical, Info, Warning
+    is_read = models.BooleanField(default=False)
+
+
 
 class Visitor(models.Model):
     '''Visitor in the system'''
@@ -85,6 +116,7 @@ class Visitor(models.Model):
     phone = models.CharField(max_length=15)
     profile_pic_url = models.CharField(max_length=500, default="")
     address = models.TextField()
+    company = models.CharField(max_length=255, default='N/A')
     created_by = models.ForeignKey(
         User,
         on_delete=models.CASCADE
@@ -103,7 +135,8 @@ class InvitationPass(models.Model):
     inv_created_at = models.DateTimeField(auto_now_add=True)
     organization_location = models.ForeignKey(
         Location,
-        on_delete=models.DO_NOTHING
+        on_delete=models.DO_NOTHING,
+        null=True
     )
     created_by = models.ForeignKey(
         User,
@@ -115,10 +148,16 @@ class InvitationPass(models.Model):
         on_delete=models.DO_NOTHING,
         related_name='visiting_person'
     )
-    checked_in_at = models.DateTimeField()
-    checked_out_at = models.DateTimeField()
-    feedback = models.TextField()
-    rating = models.FloatField()
+    approver = models.ForeignKey(
+        User,
+        on_delete=models.DO_NOTHING,
+        default=None,
+        null=True
+    )
+    checked_in_at = models.DateTimeField(null=True)
+    checked_out_at = models.DateTimeField(null=True)
+    feedback = models.TextField(null=True)
+    rating = models.FloatField(null=True)
 
 class InvitationStatus(models.Model):
     '''Keep records of all the statuses an Invitation goes through'''
@@ -158,7 +197,16 @@ class Item(models.Model):
 
 
 
-
+class INVITATION_STATUS:
+    '''All the possible statuess a invitation pass has'''
+    UNKNOWN = 'UNKNOWN'
+    PENDING_APPROVAL = 'PENDING_APPROVAL'
+    READY_FOR_CHECKIN = 'READY_FOR_CHECKIN'
+    APPROVED = 'APPROVED'
+    REJECTED = 'REJECTED'
+    CANCELLED = 'CANCELLED'
+    CHECKED_IN = 'CHECKED_IN'
+    CHECKED_OUT = 'CHECKED_OUT'
 
 
 

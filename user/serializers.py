@@ -10,12 +10,16 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ['email', 'password', 'first_name', 'last_name', 'role']
-        extra_kwargs = {'password': {'write_only': True, 'min_length': 8}}
+        extra_kwargs = {'password': {'write_only':  False, 'min_length': 8}}
 
 
     def create(self, validated_data):
         '''Create and return a new user'''
+        password = validated_data.pop('password', None)
         user = get_user_model().objects.create_user(**validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
         return user
     
 class AuthTokenSerializer(serializers.Serializer):

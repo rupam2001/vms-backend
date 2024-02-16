@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'core',
     'rest_framework',
     'rest_framework.authtoken',
-    'drf_spectacular'
+    'drf_spectacular',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -51,6 +52,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'app.urls'
@@ -132,3 +134,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Replace with the origin(s) of your frontend app
+]
+
+# Optional: Allow cookies to be included in cross-origin requests
+CORS_ALLOW_CREDENTIALS = True
