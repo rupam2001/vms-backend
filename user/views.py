@@ -19,6 +19,7 @@ from rest_framework import viewsets
 from core.models import User
 from django.shortcuts import get_object_or_404
 
+from django.db import models
 
 
 
@@ -125,6 +126,41 @@ class MangeUserViewSets(viewsets.ModelViewSet):
         }
 
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
+    
+    @action(detail=False, methods=['POST'])
+    def search(self, request, *args, **kwargs):
+        '''returns the user with search query match'''
+        query = self.request.data['query']
+        print(query)
+        if query:
+            # Search for users with matching first name, last name, or email
+            if len(query.split(" ")) == 2:
+                users = User.objects.filter(
+                    models.Q(first_name__icontains=query) |
+                    models.Q(last_name__icontains=query) |
+                    models.Q(first_name__icontains=query.split()[0])|
+                    models.Q(last_name__icontains=query.split()[1])|
+                    models.Q(email__icontains=query)
+                )
+            else:
+                users = User.objects.filter(
+                    models.Q(first_name__icontains=query) |
+                    models.Q(last_name__icontains=query) |
+                    models.Q(email__icontains=query)
+                )
+         
+            serailizer = UserSerializer(users, many=True)
+            response_data = {
+            'success': True,
+            'message': '',
+            'data': serailizer.data
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+        
+    
+        
+
 
     
     def get_queryset(self):

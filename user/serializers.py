@@ -22,6 +22,12 @@ class UserSerializer(serializers.ModelSerializer):
             user.save()
         return user
     
+class UserOutSerializer(serializers.ModelSerializer):
+    '''Serializer for User model'''
+    class Meta:
+        model = get_user_model()
+        fields = ['email', 'first_name', 'last_name', 'role']
+    
 class AuthTokenSerializer(serializers.Serializer):
     '''Serielaizer for user auth token'''
     email = serializers.EmailField()

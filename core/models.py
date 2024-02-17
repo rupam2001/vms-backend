@@ -122,6 +122,7 @@ class Visitor(models.Model):
         on_delete=models.CASCADE
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    
 
 class InvitationPass(models.Model):
     '''Invitation for a visitor by user'''
@@ -130,7 +131,7 @@ class InvitationPass(models.Model):
     purpose = models.TextField()
     visitor = models.ForeignKey(
         Visitor,
-        on_delete=models.DO_NOTHING
+        on_delete=models.DO_NOTHING    
     )
     inv_created_at = models.DateTimeField(auto_now_add=True)
     organization_location = models.ForeignKey(
