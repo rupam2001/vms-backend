@@ -122,7 +122,7 @@ class Visitor(models.Model):
         on_delete=models.CASCADE
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
 
 class InvitationPass(models.Model):
     '''Invitation for a visitor by user'''
@@ -208,6 +208,7 @@ class INVITATION_STATUS:
     CANCELLED = 'CANCELLED'
     CHECKED_IN = 'CHECKED_IN'
     CHECKED_OUT = 'CHECKED_OUT'
+    PENDING_REVIEW = 'PENDING_REVIEW'
 
 
 
