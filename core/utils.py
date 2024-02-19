@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from django.utils import timezone
 
 def add_hours_to_utc(utc_time_str, hours_to_add):
     # Convert the UTC time string to a datetime object
@@ -11,3 +12,6 @@ def add_hours_to_utc(utc_time_str, hours_to_add):
     updated_utc_time_str = updated_utc_datetime.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
 
     return updated_utc_time_str
+
+def get_currenttime_utc():
+    return timezone.now().date()

@@ -100,7 +100,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class Notification(models.Model):
     '''Notifications for everybody'''
-    origin_user = models.ForeignKey(User, on_delete=models.CASCADE)
+    targeted_user = models.ForeignKey(User, on_delete=models.CASCADE)
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     notification_type = models.CharField(max_length=20) # Critical, Info, Warning
@@ -225,3 +225,17 @@ class INVITATION_STATUS:
     
 
 
+
+
+
+'''
+CREATE TABLE Notification (
+    id INTEGER PRIMARY KEY,
+    target_user_id INTEGER REFERENCES User(id) ON DELETE CASCADE,
+    text TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notification_type TEXT,
+    is_read BOOLEAN DEFAULT FALSE
+);
+
+'''

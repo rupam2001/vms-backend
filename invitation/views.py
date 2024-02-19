@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import InvitationPass, InvitationStatus, User, Visitor, INVITATION_STATUS, Belonging
+from core.models import InvitationPass, InvitationStatus, User, Visitor, INVITATION_STATUS, Belonging, Notification
 from django.shortcuts import get_object_or_404
 from invitation.serializers import InvitationPassINSerializer, InvitationPassOUTSerializer, InvitationPassOUTWithStatusSerializer
 from core.utils import add_hours_to_utc
@@ -19,6 +19,7 @@ from datetime import timezone
 
 from visitor.serializers import VisitorSerializer
 from django.db.models import OuterRef, Subquery
+from core import utils
 
 
 class InvitationPassViewSet(viewsets.ModelViewSet):
@@ -71,10 +72,89 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
     @action(methods=['GET'], detail=False)
     def get_upcomming(self, request, *args, **kwargs):
         '''Returns the upcoming invitation passes'''
+        current_date = utils.get_currenttime_utc()
+        print(current_date)
+
         invitations = self.queryset.filter(
             visiting_person=self.request.user,
-            invitationstatus__current_status__in=[INVITATION_STATUS.READY_FOR_CHECKIN, INVITATION_STATUS.APPROVED]
+            invitationstatus__current_status__in=[INVITATION_STATUS.READY_FOR_CHECKIN, INVITATION_STATUS.APPROVED],
+            valid_from__date__gt=current_date 
         )
+
+         # Prefetch InvitationStatus objects related to each InvitationPass
+        invitations = invitations.prefetch_related(
+            Prefetch('invitationstatus_set', queryset=InvitationStatus.objects.all(), to_attr='invitation_statuses')
+        )
+
+
+        for invitation in invitations:
+            invitation.visitor = Visitor.objects.get(id=invitation.visitor_id)
+            
+
+        serializer = InvitationPassOUTSerializer(data=invitations, many=True)
+        serializer.is_valid()
+        headers = self.get_success_headers(serializer.data)
+
+        response_data = {
+            'success': True,
+            'message': '',
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK, headers=headers)
+    
+    @action(methods=['GET'], detail=False)
+    def get_history(self, request, *args, **kwargs):
+        '''Returns the upcoming invitation passes'''
+        current_date = utils.get_currenttime_utc()
+        print(current_date)
+
+        invitations = self.queryset.filter(
+            visiting_person=self.request.user,
+            valid_from__date__lte=current_date,
+            # invitationstatus__current_status__in=[INVITATION_STATUS.READY_FOR_CHECKIN, INVITATION_STATUS.APPROVED],
+
+        )
+
+         # Prefetch InvitationStatus objects related to each InvitationPass
+        invitations = invitations.prefetch_related(
+            Prefetch('invitationstatus_set', queryset=InvitationStatus.objects.all(), to_attr='invitation_statuses')
+        )
+
+
+        for invitation in invitations:
+            invitation.visitor = Visitor.objects.get(id=invitation.visitor_id)
+            
+
+        serializer = InvitationPassOUTSerializer(data=invitations, many=True)
+        serializer.is_valid()
+        headers = self.get_success_headers(serializer.data)
+
+        response_data = {
+            'success': True,
+            'message': '',
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK, headers=headers)
+    
+    @action(methods=['GET'], detail=False)
+    def get_requests(self, request, *args, **kwargs):
+        '''Returns the upcoming invitation passes'''
+        current_date = utils.get_currenttime_utc()
+    
+        latest_status_created_at = InvitationStatus.objects.filter(
+            invitation=OuterRef('pk')
+        ).order_by('-created_at').values('created_at')[:1]
+
+        invitations = self.queryset.filter(
+            valid_from__date=current_date,
+            visiting_person=self.request.user,
+            invitationstatus__current_status__in=[
+                INVITATION_STATUS.PENDING_APPROVAL,
+            ],
+            invitationstatus__created_at=Subquery(latest_status_created_at)
+        ).distinct()
 
          # Prefetch InvitationStatus objects related to each InvitationPass
         invitations = invitations.prefetch_related(
@@ -134,6 +214,8 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
 
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
     
+
+    
     @action(methods=['POST'], detail=False)
     def create_by_security(self, request, *args, **kwargs):
         '''For creating invitation pass'''
@@ -161,7 +243,8 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
                     valid_till=valid_till,
                     created_by=self.request.user,
                     visiting_person=visiting_person,
-                    visitor=visitor
+                    visitor=visitor,
+                    approver=self.request.user
                 )
                 headers = self.get_success_headers(serializer.data)
 
@@ -170,6 +253,14 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
                     current_status=INVITATION_STATUS.PENDING_APPROVAL,
                     comment="Visitor is ready to be approved",
                     next_status=INVITATION_STATUS.APPROVED
+                )
+
+                # create a notification
+                Notification.objects.create(
+                    targeted_user=visiting_person,
+                    text=f"{visitor.first_name} {visitor.last_name} is waiting for your approval",
+                    notification_type="Critical",
+                    is_read=False
                 )
                 
                 # Customize the response format
@@ -269,3 +360,37 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             }
             print(e)
             return Response(response_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(methods=['PATCH'], detail=True)
+    def req_action(self, request, pk,  *args, **kwargs):
+        '''For accept or reject of a invitation from the user side'''
+        invitation = self.queryset.get(id=pk, visiting_person=self.request.user)
+        action = self.request.data['action']
+        if action  == INVITATION_STATUS.APPROVED:
+            InvitationStatus.objects.create(
+                invitation=invitation, 
+                current_status=INVITATION_STATUS.APPROVED, 
+                next_status=INVITATION_STATUS.READY_FOR_CHECKIN,
+                comment="Invitation accepeted by the user"
+            )
+            InvitationStatus.objects.create(
+                invitation=invitation, 
+                current_status=INVITATION_STATUS.READY_FOR_CHECKIN, 
+                next_status=INVITATION_STATUS.CHECKED_IN,
+                comment="Ready for checkin"
+            )
+        elif action == INVITATION_STATUS.REJECTED:
+            InvitationStatus.objects.create(
+                invitation=invitation, 
+                current_status=INVITATION_STATUS.REJECTED, 
+                next_status=INVITATION_STATUS.UNKNOWN,
+                comment="Invitation rejected by the user"
+            )
+           
+        res = {
+            "success": True,
+            "message": "",
+            "data":[]
+        }
+        return Response(data=res, status=status.HTTP_200_OK)
+
