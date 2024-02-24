@@ -33,7 +33,7 @@ class CreateUserView(generics.CreateAPIView):
 
         '''User creation by the owner'''
         user_serializer = self.get_serializer(data=request.data)
-        print(request.data)
+        
         user_serializer.is_valid(raise_exception=True)
         org = Organization.objects.get(created_by=request.user)
         # print(org)

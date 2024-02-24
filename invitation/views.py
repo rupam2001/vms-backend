@@ -28,6 +28,9 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
     queryset = InvitationPass.objects.all()
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]  
+
+
+    
     
     def create(self, request, *args, **kwargs):
 
@@ -187,6 +190,8 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             invitation=OuterRef('pk')
         ).order_by('-created_at').values('created_at')[:1]
 
+        user_organization = request.user.orgnaization
+
         invitations = self.queryset.filter(
             valid_from__date=date,
             invitationstatus__current_status__in=[
@@ -196,7 +201,8 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
                 INVITATION_STATUS.CHECKED_IN, 
                 INVITATION_STATUS.CHECKED_OUT
             ],
-            invitationstatus__created_at=Subquery(latest_status_created_at)
+            invitationstatus__created_at=Subquery(latest_status_created_at),
+            visiting_person__orgnaization=user_organization
         ).distinct()
             
         invitations = invitations.prefetch_related(
@@ -214,6 +220,50 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
 
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
     
+    @action(methods=['POST'], detail=False)
+    def get_by_date_range(self, request,  *args, **kwargs):
+        '''Returns the all the  visits in a perticular date [for SECURITY]'''
+        # Subquery to get the latest InvitationStatus created_at for each InvitationPass
+        latest_status_created_at = InvitationStatus.objects.filter(
+            invitation=OuterRef('pk')
+        ).order_by('-created_at').values('created_at')[:1]
+
+        start_date = request.data['start_date']
+        end_date = request.data['end_date']
+
+        print(start_date, end_date)
+
+        user_organization = self.request.user.orgnaization
+
+
+
+        invitations = self.queryset.filter(
+            valid_from__date__range=[start_date, end_date],
+            invitationstatus__current_status__in=[
+                INVITATION_STATUS.PENDING_APPROVAL,
+                INVITATION_STATUS.READY_FOR_CHECKIN, 
+                INVITATION_STATUS.APPROVED,
+                INVITATION_STATUS.CHECKED_IN, 
+                INVITATION_STATUS.CHECKED_OUT
+            ],
+            invitationstatus__created_at=Subquery(latest_status_created_at),
+            # visiting_person__orgnaization=user_organization  -- commented for testing purppose
+        ).distinct()
+            
+        invitations = invitations.prefetch_related(
+            Prefetch('belonging_set', queryset=Belonging.objects.all(), to_attr='belongings')
+        )
+
+        serializer = InvitationPassOUTWithStatusSerializer(data=invitations, many=True)
+        serializer.is_valid()
+        headers = self.get_success_headers(serializer.data)
+        response_data = {
+            'success': True,
+            'message': '',
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK, headers=headers)
 
     
     @action(methods=['POST'], detail=False)
