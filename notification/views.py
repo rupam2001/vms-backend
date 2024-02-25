@@ -66,7 +66,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         '''Return all the notifications belonging to the authenticated user'''
         super().list(request, *args, **kwargs)
         try:
-            notification = self.queryset.get(targeted_user=self.request.user)
+            notification = self.queryset.filter(targeted_user=self.request.user)
             serialized = self.serializer_class(notification, many=True)
         except Notification.DoesNotExist:
             return Response(data={"success": True, "message":"No notification", "data":[]}, status=status.HTTP_200_OK)

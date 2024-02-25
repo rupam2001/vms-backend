@@ -20,6 +20,7 @@ from datetime import timezone
 from visitor.serializers import VisitorSerializer
 from django.db.models import OuterRef, Subquery
 from core import utils
+import time
 
 
 class InvitationPassViewSet(viewsets.ModelViewSet):
@@ -117,7 +118,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             valid_from__date__lte=current_date,
             # invitationstatus__current_status__in=[INVITATION_STATUS.READY_FOR_CHECKIN, INVITATION_STATUS.APPROVED],
 
-        )
+        ).order_by('-valid_from')
 
          # Prefetch InvitationStatus objects related to each InvitationPass
         invitations = invitations.prefetch_related(
@@ -129,7 +130,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             invitation.visitor = Visitor.objects.get(id=invitation.visitor_id)
             
 
-        serializer = InvitationPassOUTSerializer(data=invitations, many=True)
+        serializer = InvitationPassOUTWithStatusSerializer(data=invitations, many=True)
         serializer.is_valid()
         headers = self.get_success_headers(serializer.data)
 
@@ -138,6 +139,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             'message': '',
             'data': serializer.data
         }
+        time.sleep(3)
 
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
     
@@ -178,7 +180,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             'message': '',
             'data': serializer.data
         }
-
+        time.sleep(3)
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
 
    
