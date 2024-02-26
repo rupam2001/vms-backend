@@ -109,7 +109,7 @@ class AnalyticsViewSet(viewsets.ReadOnlyModelViewSet):
         invitations = self.queryset.filter(
             valid_from__year=year,
             invitationstatus__current_status__in=[
-                INVITATION_STATUS.CHECKED_IN,
+                # INVITATION_STATUS.CHECKED_IN,
                 INVITATION_STATUS.CHECKED_OUT
             ],
             invitationstatus__created_at=Subquery(latest_status_created_at),
@@ -171,7 +171,78 @@ class AnalyticsViewSet(viewsets.ReadOnlyModelViewSet):
         invitations = self.queryset.filter(
             valid_from__date__range=[start_date, end_date],
             invitationstatus__current_status__in=[
-                INVITATION_STATUS.CHECKED_IN,
+                # INVITATION_STATUS.CHECKED_IN,
+                INVITATION_STATUS.CHECKED_OUT
+            ],
+            invitationstatus__created_at=Subquery(latest_status_created_at),
+            # visiting_person__orgnaization=user_organization #commented for testing purppose
+        ).distinct()
+
+
+        invitations = invitations.prefetch_related(
+            Prefetch('invitationstatus_set', queryset=InvitationStatus.objects.all(), to_attr='invitationstatuses')
+        )
+        
+
+        serializer = InvitationPassOUTWithStatusSerializer(data=invitations, many=True)
+        serializer.is_valid()
+        
+
+        table = []
+        for i in invitations:
+           
+            print(i.invitationstatuses, "inv status")
+            checkin = list(filter(lambda x: x.current_status == INVITATION_STATUS.CHECKED_IN, i.invitationstatuses))[0]
+            checkout = list(filter(lambda x: x.current_status == INVITATION_STATUS.CHECKED_OUT, i.invitationstatuses))[0]
+            row = {}
+            row['name'] = f'{i.visitor.first_name} {i.visitor.last_name}'
+            row['visiting_person_name'] = f'{i.visiting_person.first_name} {i.visiting_person.last_name}'
+            row['visting_person_email'] = i.visiting_person.email
+            row['check_in_at'] = checkin.created_at#
+            row['check_out_at'] = checkout.created_at #
+            row['email'] = i.visitor.email
+            row['phone'] = i.visitor.phone
+            row['address'] = i.visitor.address
+            row['purpose'] = i.purpose
+            row['feedback'] = i.feedback 
+            row['rating'] = i.rating
+            table.append(row)
+
+        
+
+        response = {
+            "success": True,
+            "message": "",
+            "data": table
+        }
+
+        return Response(data=response, status=status.HTTP_200_OK)
+
+
+    
+    @action(methods=['POST'], detail=False)
+    def get_visitors_by_day(self, request, *args, **kwargs):
+        '''
+            Returns the data for visitir by day
+            @NOT_IN_USE
+
+        '''
+
+        latest_status_created_at = InvitationStatus.objects.filter(
+            invitation=OuterRef('pk')
+        ).order_by('-created_at').values('created_at')[:1]
+
+        start_date = request.data['start_date']
+        end_date = request.data['end_date']
+
+        print(start_date, end_date)
+
+        user_organization = self.request.user.orgnaization
+
+        invitations = self.queryset.filter(
+            valid_from__date__range=[start_date, end_date],
+            invitationstatus__current_status__in=[
+                # INVITATION_STATUS.CHECKED_IN,
                 INVITATION_STATUS.CHECKED_OUT
             ],
             invitationstatus__created_at=Subquery(latest_status_created_at),

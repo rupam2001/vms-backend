@@ -224,7 +224,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
     
     @action(methods=['POST'], detail=False)
     def get_by_date_range(self, request,  *args, **kwargs):
-        '''Returns the all the  visits in a perticular date [for SECURITY]'''
+        '''Returns the all the  visits in a date range'''
         # Subquery to get the latest InvitationStatus created_at for each InvitationPass
         latest_status_created_at = InvitationStatus.objects.filter(
             invitation=OuterRef('pk')
@@ -242,13 +242,13 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
         invitations = self.queryset.filter(
             valid_from__date__range=[start_date, end_date],
             invitationstatus__current_status__in=[
-                INVITATION_STATUS.PENDING_APPROVAL,
-                INVITATION_STATUS.READY_FOR_CHECKIN, 
-                INVITATION_STATUS.APPROVED,
-                INVITATION_STATUS.CHECKED_IN, 
+                # INVITATION_STATUS.PENDING_APPROVAL,
+                # INVITATION_STATUS.READY_FOR_CHECKIN, 
+                # INVITATION_STATUS.APPROVED,
+                # INVITATION_STATUS.CHECKED_IN, 
                 INVITATION_STATUS.CHECKED_OUT
             ],
-            invitationstatus__created_at=Subquery(latest_status_created_at),
+            # invitationstatus__created_at=Subquery(latest_status_created_at),
             # visiting_person__orgnaization=user_organization  -- commented for testing purppose
         ).distinct()
             

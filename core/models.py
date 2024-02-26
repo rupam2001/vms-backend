@@ -76,6 +76,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     role = models.CharField(max_length=50)
 
+    
+
     # new fields
     reports_to = models.ForeignKey(
         'self',
@@ -170,6 +172,8 @@ class InvitationPass(models.Model):
     checked_out_at = models.DateTimeField(null=True)
     feedback = models.TextField(null=True)
     rating = models.FloatField(null=True)
+
+    passkey = models.CharField(max_length=256, null=True)
 
 class InvitationStatus(models.Model):
     '''Keep records of all the statuses an Invitation goes through'''
