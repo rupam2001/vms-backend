@@ -173,7 +173,9 @@ class InvitationPass(models.Model):
     feedback = models.TextField(null=True)
     rating = models.FloatField(null=True)
 
-    passkey = models.CharField(max_length=256, null=True)
+    passkey = models.CharField(max_length=256, null=True) #for qr key
+    passkey_at = models.DateTimeField(null=True)
+
 
 class InvitationStatus(models.Model):
     '''Keep records of all the statuses an Invitation goes through'''
