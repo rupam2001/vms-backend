@@ -66,7 +66,7 @@ class InvitationPassOUTWithStatusSerializer(serializers.ModelSerializer):
         model = InvitationPass
         fields = [
             'id', 'valid_from', 'valid_till', 'purpose', 'visitor', 'invitationstatus_set', 'visiting_person',
-            'checked_in_at', 'checked_out_at', 'belongings', 
+            'checked_in_at', 'checked_out_at', 'belongings', "passkey"
         ]
         read_only_fields = ['id']
         extra_kwargs = {

@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -42,6 +43,9 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'drf_spectacular',
     'corsheaders',
+    "channels",
+    'services'
+    
 ]
 
 MIDDLEWARE = [
@@ -73,7 +77,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'app.wsgi.application'
+# WSGI_APPLICATION = 'app.wsgi.application'
+ASGI_APPLICATION = 'app.asgi.application'
 
 
 # Database
@@ -106,6 +111,26 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+
+
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels.layers.InMemoryChannelLayer',
+#     },
+# }
+
+# settings.py
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('redis://:foobared123@192.168.1.8:6379/0')],
+        },
+    },
+}
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
@@ -136,8 +161,16 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Replace with the origin(s) of your frontend app
+    "http://localhost:3000",  
 ]
 
 # Optional: Allow cookies to be included in cross-origin requests
 CORS_ALLOW_CREDENTIALS = True
+
+
+
+#REDIS credentials
+
+REDIS_HOST = '192.168.1.8'
+REDIS_PORT = 6379
+REDIS_PASSWORD = 'foobared123'

@@ -76,6 +76,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     role = models.CharField(max_length=50)
 
+    
+
+    # new fields
+    reports_to = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reports'
+    )
+    designation = models.CharField(max_length=255, null=True)
+    phone = models.CharField(max_length=15, null=True)
+
     orgnaization = models.ForeignKey(
         Organization, 
         on_delete=models.SET_NULL, 
@@ -159,6 +172,10 @@ class InvitationPass(models.Model):
     checked_out_at = models.DateTimeField(null=True)
     feedback = models.TextField(null=True)
     rating = models.FloatField(null=True)
+
+    passkey = models.CharField(max_length=256, null=True) #for qr key
+    passkey_at = models.DateTimeField(null=True)
+
 
 class InvitationStatus(models.Model):
     '''Keep records of all the statuses an Invitation goes through'''

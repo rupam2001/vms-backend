@@ -20,6 +20,15 @@ from datetime import timezone
 from visitor.serializers import VisitorSerializer
 from django.db.models import OuterRef, Subquery
 from core import utils
+import time
+import math
+from django.db.models import Q
+import secrets
+
+
+import redis
+from django.conf import settings
+import json
 
 
 class InvitationPassViewSet(viewsets.ModelViewSet):
@@ -28,6 +37,16 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
     queryset = InvitationPass.objects.all()
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]  
+
+    redis_store = redis.StrictRedis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD,
+        decode_responses=True,
+    )
+
+
+    
     
     def create(self, request, *args, **kwargs):
 
@@ -49,7 +68,8 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             valid_till=valid_till,
             created_by=self.request.user,
             visiting_person=self.request.user,
-            visitor=visitor
+            visitor=visitor,
+            passkey=secrets.token_hex(32)
         )
         headers = self.get_success_headers(serializer.data)
 
@@ -104,37 +124,52 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
     
     @action(methods=['GET'], detail=False)
-    def get_history(self, request, *args, **kwargs):
-        '''Returns the upcoming invitation passes'''
+    def get_history(self, request, page=-1,  *args, **kwargs):
+        '''Returns the old invitation passes'''
         current_date = utils.get_currenttime_utc()
-        print(current_date)
+        print(current_date, page)
+
+        page_amount = 8
 
         invitations = self.queryset.filter(
             visiting_person=self.request.user,
             valid_from__date__lte=current_date,
             # invitationstatus__current_status__in=[INVITATION_STATUS.READY_FOR_CHECKIN, INVITATION_STATUS.APPROVED],
+        ).order_by('-valid_from')
 
-        )
+        total_pages = math.ceil(len(invitations) / page_amount)
 
          # Prefetch InvitationStatus objects related to each InvitationPass
         invitations = invitations.prefetch_related(
             Prefetch('invitationstatus_set', queryset=InvitationStatus.objects.all(), to_attr='invitation_statuses')
         )
+        if page != -1:
+            if(len(invitations) < (page - 1)*page_amount + page_amount):
+                invitations = invitations[(page - 1)*page_amount: ]
+            else:
+                invitations = invitations[(page - 1)*page_amount: (page - 1)*page_amount + page_amount]
 
 
         for invitation in invitations:
             invitation.visitor = Visitor.objects.get(id=invitation.visitor_id)
             
 
-        serializer = InvitationPassOUTSerializer(data=invitations, many=True)
+        serializer = InvitationPassOUTWithStatusSerializer(data=invitations, many=True)
         serializer.is_valid()
         headers = self.get_success_headers(serializer.data)
+
+        print(total_pages)
 
         response_data = {
             'success': True,
             'message': '',
-            'data': serializer.data
+            'data': serializer.data,
+            'extra_data':{
+                'total_page': total_pages,
+                'page_size': page_amount
+            }
         }
+        # time.sleep(3)
 
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
     
@@ -175,7 +210,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             'message': '',
             'data': serializer.data
         }
-
+        # time.sleep(3)
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
 
    
@@ -187,16 +222,19 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             invitation=OuterRef('pk')
         ).order_by('-created_at').values('created_at')[:1]
 
+        user_organization = request.user.orgnaization
+
         invitations = self.queryset.filter(
-            valid_from__date=date,
-            invitationstatus__current_status__in=[
+            Q(valid_from__date=date) | Q(invitationstatus__current_status__in=[INVITATION_STATUS.CHECKED_IN]),
+            Q(invitationstatus__current_status__in=[
                 INVITATION_STATUS.PENDING_APPROVAL,
                 INVITATION_STATUS.READY_FOR_CHECKIN, 
                 INVITATION_STATUS.APPROVED,
                 INVITATION_STATUS.CHECKED_IN, 
                 INVITATION_STATUS.CHECKED_OUT
-            ],
-            invitationstatus__created_at=Subquery(latest_status_created_at)
+            ]),
+            Q(invitationstatus__created_at=Subquery(latest_status_created_at)),
+            Q(visiting_person__orgnaization=user_organization)
         ).distinct()
             
         invitations = invitations.prefetch_related(
@@ -214,6 +252,50 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
 
         return Response(response_data, status=status.HTTP_200_OK, headers=headers)
     
+    @action(methods=['POST'], detail=False)
+    def get_by_date_range(self, request,  *args, **kwargs):
+        '''Returns the all the  visits in a date range'''
+        # Subquery to get the latest InvitationStatus created_at for each InvitationPass
+        latest_status_created_at = InvitationStatus.objects.filter(
+            invitation=OuterRef('pk')
+        ).order_by('-created_at').values('created_at')[:1]
+
+        start_date = request.data['start_date']
+        end_date = request.data['end_date']
+
+        print(start_date, end_date)
+
+        user_organization = self.request.user.orgnaization
+
+
+
+        invitations = self.queryset.filter(
+            valid_from__date__range=[start_date, end_date],
+            invitationstatus__current_status__in=[
+                # INVITATION_STATUS.PENDING_APPROVAL,
+                # INVITATION_STATUS.READY_FOR_CHECKIN, 
+                # INVITATION_STATUS.APPROVED,
+                # INVITATION_STATUS.CHECKED_IN, 
+                INVITATION_STATUS.CHECKED_OUT
+            ],
+            # invitationstatus__created_at=Subquery(latest_status_created_at),
+            # visiting_person__orgnaization=user_organization  -- commented for testing purppose
+        ).distinct()
+            
+        invitations = invitations.prefetch_related(
+            Prefetch('belonging_set', queryset=Belonging.objects.all(), to_attr='belongings')
+        )
+
+        serializer = InvitationPassOUTWithStatusSerializer(data=invitations, many=True)
+        serializer.is_valid()
+        headers = self.get_success_headers(serializer.data)
+        response_data = {
+            'success': True,
+            'message': '',
+            'data': serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK, headers=headers)
 
     
     @action(methods=['POST'], detail=False)
@@ -258,7 +340,7 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
                 # create a notification
                 Notification.objects.create(
                     targeted_user=visiting_person,
-                    text=f"{visitor.first_name} {visitor.last_name} is waiting for your approval",
+                    text=f"<b>{visitor.first_name} {visitor.last_name}</b> is waiting for your approval",
                     notification_type="Critical",
                     is_read=False
                 )
@@ -284,10 +366,24 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
     @action(methods=['PATCH'], detail=True)
     def checkin(self, request, pk,  *args, **kwargs):
         '''Check in with belongings'''
+
+        #passkey validation
         try:
             with transaction.atomic():
 
                 invitation = self.queryset.get(id=pk)
+
+                passkey = invitation.passkey
+                
+                passkey_val = self.redis_store.get(passkey)
+                if not passkey_val:
+                    print("Pass has not been scanned")
+                    return Response(data={
+                        "success": True,
+                        "message":"You need to scan the QR code :)",
+                        "data":{}
+                    }, status=status.HTTP_200_OK)
+                
                 # add new status
                 InvitationStatus.objects.create(
                     invitation=invitation,
@@ -361,6 +457,8 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             print(e)
             return Response(response_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+
+
     @action(methods=['PATCH'], detail=True)
     def req_action(self, request, pk,  *args, **kwargs):
         '''For accept or reject of a invitation from the user side'''
@@ -393,4 +491,5 @@ class InvitationPassViewSet(viewsets.ModelViewSet):
             "data":[]
         }
         return Response(data=res, status=status.HTTP_200_OK)
+
 

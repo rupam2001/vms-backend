@@ -10,5 +10,6 @@ app_name = 'invitation'
 urlpatterns = [
     path('/', include(router.urls)),
     path('/get_by_date/<str:date>', views.InvitationPassViewSet.as_view({'get': 'get_by_date'}), name='get_by_date_invitations'),
+    path('/get_history/<int:page>', views.InvitationPassViewSet.as_view({'get': 'get_history'}), name='get_history_invitations'),
 
 ]
